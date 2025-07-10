@@ -1,5 +1,4 @@
 from pynput import keyboard
-import threading
 
 class HotkeyListener:
     def __init__(self, stop_callback, log_func):

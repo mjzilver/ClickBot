@@ -7,13 +7,15 @@ from hotkey_listener import HotkeyListener
 class BotGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Click Bot GUI")
+        self.root.title("Click Bot")
 
         self.bot = BotCore(self.log)
         self.hotkey = HotkeyListener(self.stop_bot, self.log)
 
         self.create_widgets()
         self.hotkey.start()
+        
+        self.root.after(100, self.on_gui_ready)
 
     def create_widgets(self):
         main_frame = tk.Frame(self.root, padx=15, pady=15)
@@ -89,6 +91,13 @@ class BotGUI:
         self.log_text.pack(pady=(0, 10))
 
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+    def on_gui_ready(self):
+        default_image = "image.png"
+        if self.bot.load_image(default_image):
+            self.image_path_var.set(default_image)
+        else:
+            self.log(f"Failed to load default image: {default_image}")
 
     def log(self, msg):
         self.log_text.configure(state='normal')

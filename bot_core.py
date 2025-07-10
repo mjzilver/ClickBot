@@ -22,7 +22,7 @@ class BotCore:
         self.random_move_duration_min = 0.2
         self.random_move_duration_max = 0.5
 
-        self.log = log_func
+        self.log = log_func 
 
     def load_image(self, path):
         img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
