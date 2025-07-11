@@ -24,6 +24,15 @@ if errorlevel 1 (
     exit /b 1
 )
 
+if not exist captures (
+    mkdir captures
+    if errorlevel 1 (
+        echo Failed to create captures directory. Exiting.
+        pause
+        exit /b 1
+    )
+)
+
 echo Starting bot GUI...
 python gui.py
 

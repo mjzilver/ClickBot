@@ -12,7 +12,9 @@ class BotCore:
         self.w = 0
         self.h = 0
         self.threshold = 0.8
+        self.scaling_tolerance = 0.2
         self.last_click_time = 0
+        self.delay = 1000  # milliseconds
 
         self.stop_flag = True
         self.flag_lock = Lock()
@@ -25,6 +27,9 @@ class BotCore:
         self.random_move_thread = None
 
         self.log = log_func 
+
+    def capture_screenshot(self):
+        return pyautogui.screenshot()
 
     def load_image(self, path):
         img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
@@ -48,9 +53,11 @@ class BotCore:
         loc = np.where(result >= self.threshold)
 
         for pt in zip(*loc[::-1]):
-            pyautogui.moveTo(pt[0] + self.w // 2, pt[1] + self.h // 2)
+            click_x = pt[0] + self.w // 2
+            click_y = pt[1] + self.h // 2
+            pyautogui.moveTo(click_x, click_y)
             pyautogui.click()
-            self.log(f"Clicked at {pt[0] + self.w // 2}, {pt[1] + self.h // 2}", color="green")
+            self.log(f"Clicked at {click_x}, {click_y}", color="green")
             return True
         return False
 
@@ -61,19 +68,13 @@ class BotCore:
         duration = random.uniform(self.random_move_duration_min, self.random_move_duration_max)
         pyautogui.moveTo(x, y, duration=duration)
         self.log(f"Moved mouse to {x}, {y} (random idle move, duration {duration:.2f}s)")
-
-    def set_random_move_settings(self, delay_min, delay_max, duration_min, duration_max):
-        self.random_delay_min = delay_min
-        self.random_delay_max = delay_max
-        self.random_move_duration_min = duration_min
-        self.random_move_duration_max = duration_max
         
-    def random_movement_log(self):
+    def random_movement(self):
         while not self.stop_flag:
             if self.random_movement_enabled and (time.time() - self.last_click_time > self.random_delay_max):
                 self.move_mouse_randomly()
-                delay = random.uniform(self.random_delay_min, self.random_delay_max)
-                time.sleep(delay)
+                random_click_delay = random.uniform(self.random_delay_min, self.random_delay_max)
+                time.sleep(random_click_delay)
             else:
                 time.sleep(1)
 
@@ -81,16 +82,26 @@ class BotCore:
         import threading
 
         def bot_loop():
+            last_action_time = time.perf_counter()
+            delay_secs = self.delay / 1000.0
+            
             while True:
                 with self.flag_lock:
                     if self.stop_flag:
                         break
                     
+                now = time.perf_counter()
+                elapsed = now - last_action_time
+                
+                if elapsed < delay_secs:
+                    time.sleep(delay_secs - elapsed)
+                    continue
+                    
                 found = self.find_and_click()
                 if found:
+                    last_action_time = now
                     self.last_click_time = time.time()
-                else:
-                    time.sleep(2)
+
             self.log("Bot thread exiting.")
             if on_exit:
                 on_exit()
@@ -107,7 +118,7 @@ class BotCore:
         self.log("Bot started.")
         
         if self.random_movement_enabled:
-            self.random_move_thread = threading.Thread(target=self.random_movement_log)
+            self.random_move_thread = threading.Thread(target=self.random_movement)
             self.random_move_thread.daemon = True
             self.random_move_thread.start()
         
