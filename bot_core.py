@@ -12,6 +12,7 @@ class BotCore:
         self.w = 0
         self.h = 0
         self.threshold = 0.8
+        self.last_click_time = 0
 
         self.stop_flag = True
         self.flag_lock = Lock()
@@ -21,6 +22,7 @@ class BotCore:
         self.random_delay_max = 2.0
         self.random_move_duration_min = 0.2
         self.random_move_duration_max = 0.5
+        self.random_move_thread = None
 
         self.log = log_func 
 
@@ -48,7 +50,7 @@ class BotCore:
         for pt in zip(*loc[::-1]):
             pyautogui.moveTo(pt[0] + self.w // 2, pt[1] + self.h // 2)
             pyautogui.click()
-            self.log(f"Clicked at {pt[0] + self.w // 2}, {pt[1] + self.h // 2}")
+            self.log(f"Clicked at {pt[0] + self.w // 2}, {pt[1] + self.h // 2}", color="green")
             return True
         return False
 
@@ -65,6 +67,15 @@ class BotCore:
         self.random_delay_max = delay_max
         self.random_move_duration_min = duration_min
         self.random_move_duration_max = duration_max
+        
+    def random_movement_log(self):
+        while not self.stop_flag:
+            if self.random_movement_enabled and (time.time() - self.last_click_time > self.random_delay_max):
+                self.move_mouse_randomly()
+                delay = random.uniform(self.random_delay_min, self.random_delay_max)
+                time.sleep(delay)
+            else:
+                time.sleep(1)
 
     def start(self, on_exit=None):
         import threading
@@ -74,11 +85,10 @@ class BotCore:
                 with self.flag_lock:
                     if self.stop_flag:
                         break
+                    
                 found = self.find_and_click()
-                if not found and self.random_movement_enabled:
-                    self.move_mouse_randomly()
-                    delay = random.uniform(self.random_delay_min, self.random_delay_max)
-                    time.sleep(delay)
+                if found:
+                    self.last_click_time = time.time()
                 else:
                     time.sleep(2)
             self.log("Bot thread exiting.")
@@ -87,7 +97,7 @@ class BotCore:
 
         with self.flag_lock:
             if not self.stop_flag:
-                self.log("Bot is already running!")
+                self.log("Bot is already running",)
                 return False
             self.stop_flag = False
 
@@ -95,9 +105,15 @@ class BotCore:
         self.thread.daemon = True
         self.thread.start()
         self.log("Bot started.")
+        
+        if self.random_movement_enabled:
+            self.random_move_thread = threading.Thread(target=self.random_movement_log)
+            self.random_move_thread.daemon = True
+            self.random_move_thread.start()
+        
         return True
 
     def stop(self):
         with self.flag_lock:
             self.stop_flag = True
-        self.log("Bot stopped.")
+        self.log("Bot stopping...")

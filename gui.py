@@ -3,6 +3,7 @@ from tkinter import filedialog
 from tkinter.scrolledtext import ScrolledText
 from bot_core import BotCore
 from hotkey_listener import HotkeyListener
+from datetime import datetime
 
 class BotGUI:
     def __init__(self, root):
@@ -97,11 +98,16 @@ class BotGUI:
         if self.bot.load_image(default_image):
             self.image_path_var.set(default_image)
         else:
-            self.log(f"Failed to load default image: {default_image}")
+            self.log(f"Failed to load default image: {default_image}", color="red")
 
-    def log(self, msg):
+    def log(self, msg, color=None):
+        timestamp = datetime.now().strftime("[%H:%M:%S] ")
         self.log_text.configure(state='normal')
-        self.log_text.insert(tk.END, msg + "\n")
+        if color:
+            self.log_text.insert(tk.END, timestamp + msg + "\n", color)
+            self.log_text.tag_config(color, foreground=color)
+        else:
+            self.log_text.insert(tk.END, timestamp + msg + "\n")
         self.log_text.see(tk.END)
         self.log_text.configure(state='disabled')
 
@@ -115,7 +121,7 @@ class BotGUI:
 
     def start_bot(self):
         if self.bot.template_gray is None:
-            self.log("Please upload a target image first.")
+            self.log("Please upload a target image first.", color="red")
             return
         if not self.bot.stop_flag:
             self.log("Bot is already running.")
@@ -127,10 +133,13 @@ class BotGUI:
             self.log("Bot started successfully.")
             self.status_label.config(text="Status: Running", fg="green")
         else:
-            self.log("Failed to start bot.")
+            self.log("Failed to start bot.", color="red")
         
     def stop_bot(self):
-        self.status_label.config(text="Status: Stopping...", fg="orange")
+        if self.bot.stop_flag:
+            self.log("Bot is not running, no action taken.")
+            return
+        self.status_label.config(text="Status: Stopping...", fg="yellow")
         self.bot.stop()
         
     def on_bot_exit(self):
@@ -156,7 +165,7 @@ class BotGUI:
             
             self.log("Bot settings updated successfully.")
         except Exception as e:
-            self.log(f"Error updating settings: {e}")
+            self.log(f"Error updating settings: {e}", color="red")
 
     def on_closing(self):
         self.stop_bot()

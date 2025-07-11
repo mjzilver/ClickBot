@@ -8,7 +8,7 @@ class HotkeyListener:
     def on_press(self, key):
         try:
             if key == keyboard.Key.f8:
-                self.log("F8 pressed. Stopping bot.")
+                self.log("F8 pressed. Stopping bot.", color="blue")
                 self.stop_callback()
         except:
             pass
