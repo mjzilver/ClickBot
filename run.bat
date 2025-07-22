@@ -11,6 +11,6 @@ if not exist captures (
     mkdir captures
 )
 
-python gui.py
+python src\gui.py
 
 pause >nul
