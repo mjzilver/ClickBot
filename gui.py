@@ -4,7 +4,6 @@ from tkinter.scrolledtext import ScrolledText
 from bot_core import BotCore
 from hotkey_listener import HotkeyListener
 from datetime import datetime
-from screenshot_selector import ScreenshotSelector
 
 class BotGUI:
     def __init__(self, root):
@@ -12,7 +11,7 @@ class BotGUI:
         self.root.title("Click Bot")
 
         self.bot = BotCore(self.log)
-        self.hotkey = HotkeyListener(self.stop_bot, self.screen_capture, self.log)
+        self.hotkey = HotkeyListener(self.toggle_bot, self.toggle_movement, self.log)
 
         self.create_widgets()
         self.hotkey.start()
@@ -24,14 +23,14 @@ class BotGUI:
         main_frame.pack()
 
         # --- Image selection group ---
-        image_frame = tk.LabelFrame(main_frame, text="Target Image", padx=10, pady=10)
+        image_frame = tk.LabelFrame(main_frame, text="Target Images", padx=10, pady=10)
         image_frame.pack(fill='x', pady=5)
 
-        self.image_path_var = tk.StringVar()
-        tk.Label(image_frame, text="Image Path:").grid(row=0, column=0, sticky="w")
+        self.image_path_var = tk.StringVar(value="No images loaded")
+        tk.Label(image_frame, text="Loaded Images:").grid(row=0, column=0, sticky="w")
         self.image_entry = tk.Entry(image_frame, textvariable=self.image_path_var, width=40, state='readonly')
         self.image_entry.grid(row=0, column=1, padx=5)
-        upload_btn = tk.Button(image_frame, text="Upload Image", command=self.upload_image)
+        upload_btn = tk.Button(image_frame, text="Upload Images", command=self.upload_image)
         upload_btn.grid(row=0, column=2, padx=5)
 
         # --- Bot control group ---
@@ -109,11 +108,25 @@ class BotGUI:
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
     def on_gui_ready(self):
-        default_image = "image.png"
-        if self.bot.load_image(default_image):
-            self.image_path_var.set(default_image)
+        default_images = ["image.png"]
+        loaded = 0
+        for path in default_images:
+            if self.bot.load_image(path):
+                loaded += 1
+        self.update_image_label()
+        if loaded > 0:
+            self.log(f"{loaded} default image(s) loaded.")
         else:
-            self.log(f"Failed to load default image: {default_image}", color="red")
+            self.log("No default images loaded.", color="red")
+
+    def update_image_label(self):
+        count = len(self.bot.template_grays)
+        if count == 0:
+            self.image_path_var.set("No images loaded")
+        elif count == 1:
+            self.image_path_var.set("1 image loaded")
+        else:
+            self.image_path_var.set(f"{count} images loaded")
 
     def log(self, msg, color=None):
         timestamp = datetime.now().strftime("[%H:%M:%S] ")
@@ -127,15 +140,21 @@ class BotGUI:
         self.log_text.configure(state='disabled')
 
     def upload_image(self):
-        path = filedialog.askopenfilename(filetypes=[("Image files", "*.png;*.jpg;*.jpeg;*.bmp"), ("All files", "*.*")])
-        
-        if path:
+        paths = filedialog.askopenfilenames(filetypes=[("Image files", "*.png;*.jpg;*.jpeg;*.bmp"), ("All files", "*.*")])
+        if not paths:
+            return
+
+        successful = 0
+        for path in paths:
             if self.bot.load_image(path):
-                self.image_path_var.set(path)
+                successful += 1
+
+        self.update_image_label()
+        self.log(f"{successful} image(s) loaded." if successful else "No valid images loaded.", color="green" if successful else "red")
 
     def start_bot(self):
-        if self.bot.template_gray is None:
-            self.log("Please upload a target image first.", color="red")
+        if len(self.bot.template_grays) == 0:
+            self.log("Please upload at least one target image.", color="red")
             return
         if not self.bot.stop_flag:
             self.log("Bot is already running.")
@@ -149,16 +168,11 @@ class BotGUI:
         else:
             self.log("Failed to start bot.", color="red")
     
-    def screen_capture(self):
-        try:
-            screenshot = self.bot.capture_screenshot()
-            if screenshot is not None:
-                ScreenshotSelector(self.root, screenshot, self.log, self.bot.load_image)
-
-            else:
-                self.log("Failed to capture screenshot.", color="red")
-        except Exception as e:
-            self.log(f"Error during screen capture: {e}", color="red")
+    def toggle_bot(self):
+        if self.bot.stop_flag:
+            self.start_bot()
+        else:
+            self.stop_bot()
     
     def stop_bot(self):
         if self.bot.stop_flag:
@@ -166,6 +180,14 @@ class BotGUI:
             return
         self.status_label.config(text="Status: Stopping...", fg="yellow")
         self.bot.stop()
+        
+    def toggle_movement(self):
+        if self.bot.random_movement_enabled:
+            self.bot.random_movement_enabled = False
+            self.log("Random movement disabled.", color="blue")
+        else:
+            self.bot.random_movement_enabled = True
+            self.log("Random movement enabled.", color="blue")
         
     def on_bot_exit(self):
         self.log("Bot has exited.")

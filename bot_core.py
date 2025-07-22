@@ -7,14 +7,13 @@ from threading import Lock
 
 class BotCore:
     def __init__(self, log_func):
-        self.template = None
-        self.template_gray = None
-        self.w = 0
-        self.h = 0
+        self.templates = []
+        self.template_grays = []
+        self.template_sizes = [] 
         self.threshold = 0.8
         self.scaling_tolerance = 0.2
         self.last_click_time = 0
-        self.delay = 1000  # milliseconds
+        self.delay = 1000
 
         self.stop_flag = True
         self.flag_lock = Lock()
@@ -34,31 +33,36 @@ class BotCore:
     def load_image(self, path):
         img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
         if img is None:
+            self.log(f"Failed to load image: {path}", color="red")
             return False
-        self.template = img
-        self.template_gray = cv2.cvtColor(self.template, cv2.COLOR_BGR2GRAY)
-        self.w, self.h = self.template_gray.shape[::-1]
-        self.log(f"Loaded image: {path} ({self.w}x{self.h})")
+
+        img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        w, h = img_gray.shape[::-1]
+
+        self.templates.append(img)
+        self.template_grays.append(img_gray)
+        self.template_sizes.append((w, h))
+        self.log(f"Loaded image: {path} ({w}x{h})")
         return True
 
     def find_and_click(self):
-        if self.template_gray is None:
-            return False
-
         screenshot = pyautogui.screenshot()
         screenshot_np = np.array(screenshot)
         screenshot_gray = cv2.cvtColor(screenshot_np, cv2.COLOR_RGB2GRAY)
 
-        result = cv2.matchTemplate(screenshot_gray, self.template_gray, cv2.TM_CCOEFF_NORMED)
-        loc = np.where(result >= self.threshold)
+        for index, template_gray in enumerate(self.template_grays):
+            w, h = self.template_sizes[index]
+            result = cv2.matchTemplate(screenshot_gray, template_gray, cv2.TM_CCOEFF_NORMED)
+            loc = np.where(result >= self.threshold)
 
-        for pt in zip(*loc[::-1]):
-            click_x = pt[0] + self.w // 2
-            click_y = pt[1] + self.h // 2
-            pyautogui.moveTo(click_x, click_y)
-            pyautogui.click()
-            self.log(f"Clicked at {click_x}, {click_y}", color="green")
-            return True
+            for pt in zip(*loc[::-1]):
+                click_x = pt[0] + w // 2
+                click_y = pt[1] + h // 2
+                pyautogui.moveTo(click_x, click_y)
+                pyautogui.click()
+                self.log(f"Clicked at {click_x}, {click_y} using template #{index}", color="green")
+                return True
+
         return False
 
     def move_mouse_randomly(self):
@@ -73,8 +77,7 @@ class BotCore:
         while not self.stop_flag:
             if self.random_movement_enabled and (time.time() - self.last_click_time > self.random_delay_max):
                 self.move_mouse_randomly()
-                random_click_delay = random.uniform(self.random_delay_min, self.random_delay_max)
-                time.sleep(random_click_delay)
+                time.sleep(random.uniform(self.random_delay_min, self.random_delay_max))
             else:
                 time.sleep(1)
 
@@ -108,7 +111,7 @@ class BotCore:
 
         with self.flag_lock:
             if not self.stop_flag:
-                self.log("Bot is already running",)
+                self.log("Bot is already running")
                 return False
             self.stop_flag = False
 
